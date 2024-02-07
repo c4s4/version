@@ -16,6 +16,7 @@ struct Cli {
     #[arg(short, long)]
     version: bool,
     /// Software to set version for
+    #[arg(default_value(""))]
     software: String,
 }
 
@@ -26,6 +27,11 @@ fn main() {
     if args.version {
         println!("{}", VERSION);
         return;
+    }
+    // check if software is set
+    if args.software.is_empty() {
+        eprintln!("Software not set");
+        process::exit(1);
     }
     // get app directory
     let app_dir = match env::var("APP_DIR") {
