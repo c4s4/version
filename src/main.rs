@@ -25,27 +25,28 @@ fn main() {
         return;
     }
     // get software versions
-    let versions: Vec<str> = software_versions(args.software);
+    let versions: Vec<String > = software_versions(&args.software);
+    // FIXME
+    println!("{:?}", versions);
 }
 
-fn software_versions(software: String) -> &Vec<str> {
+fn software_versions(software: &String) -> Vec<String> {
     let app_dir = match env::var("APP_DIR") {
         Ok(val) => val,
-        Err(e) => APP_DIR.to_string(),
+        Err(_) => APP_DIR.to_string(),
     };
     let path = format!("{}/{}", app_dir, software);
-    let output = Command::new("ls")
-        .arg(path)
-        .output()
-        .expect("failed to execute process");
-    let versions: Vec<str> = String::from_utf8(output.stdout).unwrap().split("\n").collect();
-    versions.retain(|&v| v != "current");
-    &versions
+    let line = run(&"ls".to_string(), &vec![path]);
+    let mut versions: Vec<String> = line.split_whitespace().map(str::to_string).collect();
+    versions.retain(|v| v != "current");
+    versions
 }
 
-fn run(command: String) {
-    if let Err(err) = Command::new(command).status() {
-        eprintln!("ERROR running command: {err}");
+fn run(command: &String, args: &Vec<String>) -> String {
+    let output = Command::new(command).args(args).output();
+    if output.is_err() {
+        eprintln!("ERROR running command {}: {}", command, output.err().unwrap());
         process::exit(1);
     };
+    String::from_utf8(output.unwrap().stdout).unwrap()
 }
