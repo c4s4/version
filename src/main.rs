@@ -1,9 +1,9 @@
 use clap::Parser;
 use std::env;
+use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::Path;
 use std::process;
-use std::process::Command;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const APP_DIR: &str = "/opt";
@@ -30,8 +30,7 @@ fn main() {
     }
     // check if software is set
     if args.software.is_empty() {
-        eprintln!("Software not set");
-        process::exit(1);
+        error("Software not set");
     }
     // get app directory
     let app_dir = match env::var("APP_DIR") {
@@ -40,11 +39,47 @@ fn main() {
     };
     // get software versions
     let versions: Vec<String> = software_versions(&app_dir, &args.software);
+    // get version from menu
+    let version = version_menu(&versions);
+    // select software version
+    select_version(&app_dir, &args.software, &version);
+    // print selected version
+    if version == CURRENT_VERSION {
+        println!("Selected version: system");
+    } else {
+        println!("Selected version: {}", version);
+    }
+}
+
+// get software versions
+fn software_versions(app_dir: &str, software: &str) -> Vec<String> {
+    let dir = format!("{}/{}", &app_dir, &software);
+    let mut versions: Vec<String> = Vec::new();
+    let result = fs::read_dir(&dir);
+    if result.is_err() {
+        error(&format!("reading directory {}", dir));
+    }
+    for file in result.unwrap() {
+        if !file.is_err() {
+            let path = file.unwrap().path();
+            if path.is_dir() {
+                let name = path.file_name().unwrap().to_str().unwrap();
+                if name != CURRENT_VERSION {
+                    versions.push(name.to_string());
+                }
+            }
+        }
+    }
+    versions
+}
+
+// get version from menu
+fn version_menu(versions: &Vec<String>) -> String {
     // print versions menu
     println!("Please choose a version:");
     println!("0: System");
     let mut index = 1;
-    for version in &versions {
+    for version in versions {
         println!("{index}: {version}");
         index += 1;
     }
@@ -53,8 +88,7 @@ fn main() {
     std::io::stdin().read_line(&mut input).unwrap();
     let index: usize = input.trim().parse().unwrap();
     if index > versions.len() {
-        eprintln!("Invalid version index: {}", index);
-        process::exit(1);
+        error(&format!("invalid version index: {}", index));
     }
     // make link to appropriate version
     let version = if index == 0 {
@@ -62,50 +96,34 @@ fn main() {
     } else {
         versions[index - 1].to_string()
     };
+    version
+}
+
+// select software version making symbolic link
+fn select_version(app_dir: &str, software: &str, version: &str) {
     // go to app directory
-    let path = format!("{}/{}", app_dir, args.software);
+    let path = format!("{}/{}", app_dir, software);
     if !env::set_current_dir(&path).is_ok() {
-        eprintln!("ERROR changing to directory {}", path);
-        process::exit(1);
+        error(&format!("changing to directory {}", path));
     }
     if version == CURRENT_VERSION {
         // remove symbolic link
         if Path::new(&version).exists() {
-            if !std::fs::remove_file(&version).is_ok() {
-                eprintln!("ERROR removing file {}", version);
-                process::exit(1);
+            let result = std::fs::remove_file(&version);
+            if !result.is_ok() {
+                error(&format!("removing file '{}': {:?}", version, result.err()));
             }
         }
     } else {
         // set symbolic link
-        if !symlink(&version, CURRENT_VERSION).is_ok() {
-            eprintln!(
-                "ERROR creating symbolic link {} -> {}",
-                version, CURRENT_VERSION
-            );
-            process::exit(1);
+        let result = symlink(&version, CURRENT_VERSION);
+        if !result.is_ok() {
+            error(&format!("creating symbolic link {} -> {}: {:?}", version, CURRENT_VERSION, result.err()));
         }
     }
 }
 
-fn software_versions(app_dir: &String, software: &String) -> Vec<String> {
-    let path = format!("{}/{}", app_dir, software);
-    let line = run(&"ls".to_string(), &vec![path]);
-    let mut versions: Vec<String> = line.split_whitespace().map(str::to_string).collect();
-    versions.retain(|v| v != CURRENT_VERSION);
-    versions.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
-    versions
-}
-
-fn run(command: &String, args: &Vec<String>) -> String {
-    let output = Command::new(command).args(args).output();
-    if output.is_err() {
-        eprintln!(
-            "ERROR running command {}: {}",
-            command,
-            output.err().unwrap()
-        );
-        process::exit(1);
-    };
-    String::from_utf8(output.unwrap().stdout).unwrap()
+fn error(message: &str) {
+    eprintln!("ERROR {}", message);
+    process::exit(1);
 }
