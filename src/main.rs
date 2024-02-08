@@ -118,11 +118,17 @@ fn select_version(app_dir: &str, software: &str, version: &str) {
         // set symbolic link
         let result = symlink(&version, CURRENT_VERSION);
         if !result.is_ok() {
-            error(&format!("creating symbolic link {} -> {}: {:?}", version, CURRENT_VERSION, result.err()));
+            error(&format!(
+                "creating symbolic link {} -> {}: {:?}",
+                version,
+                CURRENT_VERSION,
+                result.err()
+            ));
         }
     }
 }
 
+// print error message and exit
 fn error(message: &str) {
     eprintln!("ERROR {}", message);
     process::exit(1);
