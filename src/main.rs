@@ -7,14 +7,15 @@ use std::process;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const APP_DIR: &str = "/opt";
+const APP_DIR_VAR: &str = "APP_DIR";
 const CURRENT_VERSION: &str = "current";
 const SYSTEM_VERSION: &str = "system";
 const SYSTEM_RANK: usize = 0;
 
-/// Run command ensuring only one instance is running on this system
+/// Select software version from menu
 #[derive(Parser)]
 struct Cli {
-    /// The lone version
+    /// The version
     #[arg(short, long)]
     version: bool,
     /// Software to set version for
@@ -35,7 +36,7 @@ fn main() {
         error("Software not set");
     }
     // get app directory
-    let app_dir = match env::var("APP_DIR") {
+    let app_dir = match env::var(APP_DIR_VAR) {
         Ok(val) => val,
         Err(_) => APP_DIR.to_string(),
     };
