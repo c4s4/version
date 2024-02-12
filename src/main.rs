@@ -8,6 +8,8 @@ use std::process;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const APP_DIR: &str = "/opt";
 const CURRENT_VERSION: &str = "current";
+const SYSTEM_VERSION: &str = "system";
+const SYSTEM_RANK: usize = 0;
 
 /// Run command ensuring only one instance is running on this system
 #[derive(Parser)]
@@ -91,8 +93,8 @@ fn version_menu(versions: &Vec<String>) -> String {
         error(&format!("invalid version index: {}", index));
     }
     // make link to appropriate version
-    let version = if index == 0 {
-        CURRENT_VERSION.to_string()
+    let version = if index == SYSTEM_RANK {
+        SYSTEM_VERSION.to_string()
     } else {
         versions[index - 1].to_string()
     };
@@ -106,15 +108,21 @@ fn select_version(app_dir: &str, software: &str, version: &str) {
     if !env::set_current_dir(&path).is_ok() {
         error(&format!("changing to directory {}", path));
     }
-    if version == CURRENT_VERSION {
-        // remove symbolic link
-        if Path::new(&version).exists() {
-            let result = std::fs::remove_file(&version);
+    if version == SYSTEM_VERSION {
+        if Path::new(CURRENT_VERSION).exists() {
+            let result = std::fs::remove_file(CURRENT_VERSION);
+            if !result.is_ok() {
+                error(&format!("removing file '{}': {:?}", CURRENT_VERSION, result.err()));
+            }
+        }
+    } else {
+        // remove symbolic link if it exists
+        if Path::new(CURRENT_VERSION).exists() {
+            let result = std::fs::remove_file(CURRENT_VERSION);
             if !result.is_ok() {
                 error(&format!("removing file '{}': {:?}", version, result.err()));
             }
         }
-    } else {
         // set symbolic link
         let result = symlink(&version, CURRENT_VERSION);
         if !result.is_ok() {
