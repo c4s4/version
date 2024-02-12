@@ -41,8 +41,10 @@ fn main() {
     };
     // get software versions
     let versions: Vec<String> = software_versions(&app_dir, &args.software);
+    // get selected version
+    let selected = selected_version(&app_dir, &args.software);
     // get version from menu
-    let version = version_menu(&versions);
+    let version = version_menu(&versions, &selected);
     // select software version
     select_version(&app_dir, &args.software, &version);
     // print selected version
@@ -76,13 +78,17 @@ fn software_versions(app_dir: &str, software: &str) -> Vec<String> {
 }
 
 // get version from menu
-fn version_menu(versions: &Vec<String>) -> String {
+fn version_menu(versions: &Vec<String>, selected: &str) -> String {
     // print versions menu
     println!("Please choose a version:");
     println!("0: System");
     let mut index = 1;
     for version in versions {
-        println!("{index}: {version}");
+        if version == selected {
+            println!("{index}: {version} *");
+        } else {
+            println!("{index}: {version}");
+        }
         index += 1;
     }
     // get user input
@@ -101,6 +107,18 @@ fn version_menu(versions: &Vec<String>) -> String {
     version
 }
 
+fn selected_version(app_dir: &str, software: &str) -> String {
+    // get current version if set
+    let path = format!("{}/{}/{}", app_dir, software, CURRENT_VERSION);
+    if Path::new(&path).exists() {
+        let result = fs::read_link(&path);
+        if result.is_ok() {
+            return result.unwrap().file_name().unwrap().to_str().unwrap().to_string();
+        };
+    };
+    "".to_string()
+}
+
 // select software version making symbolic link
 fn select_version(app_dir: &str, software: &str, version: &str) {
     // go to app directory
@@ -112,7 +130,11 @@ fn select_version(app_dir: &str, software: &str, version: &str) {
         if Path::new(CURRENT_VERSION).exists() {
             let result = std::fs::remove_file(CURRENT_VERSION);
             if !result.is_ok() {
-                error(&format!("removing file '{}': {:?}", CURRENT_VERSION, result.err()));
+                error(&format!(
+                    "removing file '{}': {:?}",
+                    CURRENT_VERSION,
+                    result.err()
+                ));
             }
         }
     } else {
