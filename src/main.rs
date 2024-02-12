@@ -82,7 +82,11 @@ fn software_versions(app_dir: &str, software: &str) -> Vec<String> {
 fn version_menu(versions: &Vec<String>, selected: &str) -> String {
     // print versions menu
     println!("Please choose a version:");
-    println!("0: System");
+    if selected == "" {
+        println!("0: System *");
+    } else {
+        println!("0: System");
+    }
     let mut index = 1;
     for version in versions {
         if version == selected {
