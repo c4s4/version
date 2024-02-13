@@ -33,7 +33,7 @@ fn main() {
     }
     // check if software is set
     if args.software.is_empty() {
-        error("Software not set");
+        fail("Software not set");
     }
     // get app directory
     let app_dir = match env::var(APP_DIR_VAR) {
@@ -50,7 +50,7 @@ fn main() {
     select_version(&app_dir, &args.software, &version);
     // print selected version
     if version == CURRENT_VERSION {
-        println!("Selected version: system");
+        println!("Selected version: System");
     } else {
         println!("Selected version: {}", version);
     }
@@ -62,7 +62,7 @@ fn software_versions(app_dir: &str, software: &str) -> Vec<String> {
     let mut versions: Vec<String> = Vec::new();
     let result = fs::read_dir(&dir);
     if result.is_err() {
-        error(&format!("reading directory {}", dir));
+        fail(&format!("reading directory {}: {}", dir, &result.as_ref().unwrap_err()));
     }
     for file in result.unwrap() {
         if !file.is_err() {
@@ -101,7 +101,7 @@ fn version_menu(versions: &Vec<String>, selected: &str) -> String {
     std::io::stdin().read_line(&mut input).unwrap();
     let index: usize = input.trim().parse().unwrap();
     if index > versions.len() {
-        error(&format!("invalid version index: {}", index));
+        fail(&format!("invalid version index: {}", index));
     }
     // make link to appropriate version
     let version = if index == SYSTEM_RANK {
@@ -112,6 +112,7 @@ fn version_menu(versions: &Vec<String>, selected: &str) -> String {
     version
 }
 
+// get selected version
 fn selected_version(app_dir: &str, software: &str) -> String {
     // get current version if set
     let path = format!("{}/{}/{}", app_dir, software, CURRENT_VERSION);
@@ -128,43 +129,44 @@ fn selected_version(app_dir: &str, software: &str) -> String {
 fn select_version(app_dir: &str, software: &str, version: &str) {
     // go to app directory
     let path = format!("{}/{}", app_dir, software);
-    if !env::set_current_dir(&path).is_ok() {
-        error(&format!("changing to directory {}", path));
+    let result = env::set_current_dir(&path);
+    if !result.is_ok() {
+        error(&format!("changing to directory {}", path), result);
     }
+    // selected system version
+    // remove symbolic link if it exists
     if version == SYSTEM_VERSION {
         if Path::new(CURRENT_VERSION).exists() {
             let result = std::fs::remove_file(CURRENT_VERSION);
             if !result.is_ok() {
-                error(&format!(
-                    "removing file '{}': {:?}",
-                    CURRENT_VERSION,
-                    result.err()
-                ));
+                error(&format!("removing file '{}'", CURRENT_VERSION), result);
             }
         }
     } else {
+        // selected installed version
         // remove symbolic link if it exists
         if Path::new(CURRENT_VERSION).exists() {
             let result = std::fs::remove_file(CURRENT_VERSION);
             if !result.is_ok() {
-                error(&format!("removing file '{}': {:?}", version, result.err()));
+                error(&format!("removing file '{}'",CURRENT_VERSION), result);
             }
         }
         // set symbolic link
         let result = symlink(&version, CURRENT_VERSION);
         if !result.is_ok() {
-            error(&format!(
-                "creating symbolic link {} -> {}: {:?}",
-                version,
-                CURRENT_VERSION,
-                result.err()
-            ));
+            error(&format!("creating symbolic link '{}' -> '{}'", version, CURRENT_VERSION), result);
         }
     }
 }
 
+// print error message with result and exit
+fn error(message: &str, result: std::io::Result<()>) {
+    eprintln!("ERROR {}: {}", message, result.unwrap_err());
+    process::exit(1);
+}
+
 // print error message and exit
-fn error(message: &str) {
+fn fail(message: &str) {
     eprintln!("ERROR {}", message);
     process::exit(1);
 }
