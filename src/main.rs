@@ -5,7 +5,6 @@ use std::os::unix::fs::symlink;
 use std::path::Path;
 use std::process;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
 const APP_DIR: &str = "/opt";
 const APP_DIR_VAR: &str = "APP_DIR";
 const CURRENT_VERSION: &str = "current";
@@ -14,27 +13,15 @@ const SYSTEM_RANK: usize = 0;
 
 /// Select software version from menu
 #[derive(Parser)]
+#[command(version)]
 struct Cli {
-    /// The version
-    #[arg(short, long)]
-    version: bool,
     /// Software to set version for
-    #[arg(default_value(""))]
     software: String,
 }
 
 fn main() {
     // parse command line arguments
     let args = Cli::parse();
-    // print version and exit
-    if args.version {
-        println!("{}", VERSION);
-        return;
-    }
-    // check if software is set
-    if args.software.is_empty() {
-        fail("Software not set");
-    }
     // get app directory
     let app_dir = match env::var(APP_DIR_VAR) {
         Ok(val) => val,
@@ -60,18 +47,25 @@ fn main() {
 fn software_versions(app_dir: &str, software: &str) -> Vec<String> {
     let dir = format!("{}/{}", &app_dir, &software);
     let mut versions: Vec<String> = Vec::new();
-    let result = fs::read_dir(&dir);
-    if result.is_err() {
-        fail(&format!("reading directory {}: {}", dir, &result.as_ref().unwrap_err()));
-    }
-    for file in result.unwrap() {
-        if !file.is_err() {
-            let path = file.unwrap().path();
-            if path.is_dir() {
-                let name = path.file_name().unwrap().to_str().unwrap();
-                if name != CURRENT_VERSION {
-                    versions.push(name.to_string());
-                }
+    let files = match fs::read_dir(&dir) {
+        Ok(val) => val,
+        Err(err) => {
+            eprintln!("ERROR reading directory {}: {}", dir, err);
+            process::exit(1);
+        }
+    };
+    for file in files {
+        let path = match file {
+            Ok(file) => file.path(),
+            Err(err) => {
+                eprintln!("ERROR reading directory {}: {}", dir, err);
+                process::exit(1);
+            }
+        };
+        if path.is_dir() {
+            let version = path.file_name().unwrap().to_str().unwrap();
+            if version != CURRENT_VERSION {
+                versions.push(version.to_string());
             }
         }
     }
@@ -98,10 +92,20 @@ fn version_menu(versions: &Vec<String>, selected: &str) -> String {
     }
     // get user input
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-    let index: usize = input.trim().parse().unwrap();
+    if let Err(err) = std::io::stdin().read_line(&mut input) {
+        eprintln!("ERROR reading input: {}", err);
+        process::exit(1);
+    }
+    let index: usize = match input.trim().parse() {
+        Ok(val) => val,
+        Err(err) => {
+            eprintln!("ERROR parsing input: {}", err);
+            process::exit(1);
+        }
+    };
     if index > versions.len() {
-        fail(&format!("invalid version index: {}", index));
+        eprintln!("ERROR invalid version index: {}", index);
+        process::exit(1);
     }
     // make link to appropriate version
     let version = if index == SYSTEM_RANK {
@@ -117,10 +121,9 @@ fn selected_version(app_dir: &str, software: &str) -> String {
     // get current version if set
     let path = format!("{}/{}/{}", app_dir, software, CURRENT_VERSION);
     if Path::new(&path).exists() {
-        let result = fs::read_link(&path);
-        if result.is_ok() {
-            return result.unwrap().file_name().unwrap().to_str().unwrap().to_string();
-        };
+        if let Ok(file) = fs::read_link(&path) {
+            return file.file_name().unwrap().to_str().unwrap().to_string();
+        }
     };
     "".to_string()
 }
@@ -129,44 +132,35 @@ fn selected_version(app_dir: &str, software: &str) -> String {
 fn select_version(app_dir: &str, software: &str, version: &str) {
     // go to app directory
     let path = format!("{}/{}", app_dir, software);
-    let result = env::set_current_dir(&path);
-    if !result.is_ok() {
-        error(&format!("changing to directory {}", path), result);
+    if let Err(err) = env::set_current_dir(&path) {
+        eprintln!("ERROR changing to directory {}: {}", path, err);
+        process::exit(1);
     }
     // selected system version
-    // remove symbolic link if it exists
     if version == SYSTEM_VERSION {
+        // remove symbolic link if it exists
         if Path::new(CURRENT_VERSION).exists() {
-            let result = std::fs::remove_file(CURRENT_VERSION);
-            if !result.is_ok() {
-                error(&format!("removing file '{}'", CURRENT_VERSION), result);
+            if let Err(err) = fs::remove_file(CURRENT_VERSION) {
+                eprintln!("ERROR removing file {}: {}", CURRENT_VERSION, err);
+                process::exit(1);
             }
         }
     } else {
         // selected installed version
         // remove symbolic link if it exists
         if Path::new(CURRENT_VERSION).exists() {
-            let result = std::fs::remove_file(CURRENT_VERSION);
-            if !result.is_ok() {
-                error(&format!("removing file '{}'",CURRENT_VERSION), result);
+            if let Err(err) = fs::remove_file(CURRENT_VERSION) {
+                eprintln!("ERROR removing file {}: {}", CURRENT_VERSION, err);
+                process::exit(1);
             }
         }
         // set symbolic link
-        let result = symlink(&version, CURRENT_VERSION);
-        if !result.is_ok() {
-            error(&format!("creating symbolic link '{}' -> '{}'", version, CURRENT_VERSION), result);
+        if let Err(err) = symlink(&version, CURRENT_VERSION) {
+            eprintln!(
+                "ERROR creating symbolic link '{}' -> '{}': {}",
+                version, CURRENT_VERSION, err
+            );
+            process::exit(1);
         }
     }
-}
-
-// print error message with result and exit
-fn error(message: &str, result: std::io::Result<()>) {
-    eprintln!("ERROR {}: {}", message, result.unwrap_err());
-    process::exit(1);
-}
-
-// print error message and exit
-fn fail(message: &str) {
-    eprintln!("ERROR {}", message);
-    process::exit(1);
 }
