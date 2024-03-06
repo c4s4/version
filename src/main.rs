@@ -69,6 +69,7 @@ fn software_versions(app_dir: &str, software: &str) -> Vec<String> {
             }
         }
     }
+    versions.sort();
     versions
 }
 
