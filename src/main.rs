@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use colored::Colorize;
 use std::env;
 use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::Path;
-use colored::Colorize;
 
 const APP_DIR: &str = "/opt";
 const APP_DIR_VAR: &str = "APP_DIR";
@@ -32,11 +32,11 @@ fn main() {
             } else {
                 println!("{} selected version: {}", "OK".green().bold(), version);
             }
-        },
+        }
         Err(e) => {
             eprintln!("{} {:#}", "ERROR".red().bold(), e);
             std::process::exit(1);
-        },
+        }
     }
 }
 
@@ -73,7 +73,8 @@ fn software_versions(app_dir: &str, software: &str) -> Result<Vec<String>> {
             .with_context(|| format!("getting file type for {}", path.path().display()))?;
         if file_type.is_dir() {
             let file_name = path.file_name();
-            let version = file_name.to_str()
+            let version = file_name
+                .to_str()
                 .with_context(|| format!("getting file name for {:?}", path))?;
             if version != CURRENT_VERSION {
                 versions.push(version.to_string());
